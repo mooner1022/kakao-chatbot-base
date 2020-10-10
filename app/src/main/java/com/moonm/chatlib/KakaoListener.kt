@@ -3,6 +3,7 @@ package com.moonm.chatlib
 import android.app.Notification
 import android.app.PendingIntent.CanceledException
 import android.app.RemoteInput
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
@@ -19,7 +20,7 @@ import java.io.ByteArrayOutputStream
 import java.util.*
 import kotlin.collections.HashSet
 
-object KakaoListener: NotificationListenerService() {
+public object KakaoListener: NotificationListenerService() {
     private var listeners = HashSet<OnChatInListener>()
     private lateinit var _session:Notification.Action
     private val replier:Replier = object : Replier {
@@ -74,9 +75,9 @@ object KakaoListener: NotificationListenerService() {
         }
     }
 
-    fun checkPermission(packageName: String):Boolean {
+    fun checkPermission(context: Context,packageName: String):Boolean {
         val permission = Settings.Secure.getString(
-            this.contentResolver,
+            context.contentResolver,
             "enabled_notification_listeners"
         )
         return !(permission == null || !permission.contains(packageName))
@@ -86,8 +87,8 @@ object KakaoListener: NotificationListenerService() {
         startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
     }
 
-    fun checkAndRequestPermission(packageName: String) {
-        if (!checkPermission(packageName)) requestPermission()
+    fun checkAndRequestPermission(context: Context,packageName: String) {
+        if (!checkPermission(context,packageName)) requestPermission()
     }
 
     private fun send(message: String, session: Notification.Action) {
