@@ -15,7 +15,7 @@ allprojects {
 }
 
 dependencies {
-    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+    implementation 'com.github.mooner1022:kakao-chatbot-base:v0.0.1-b3'
 }
 ```
 
