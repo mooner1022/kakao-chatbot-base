@@ -5,6 +5,7 @@ import android.app.PendingIntent.CanceledException
 import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
@@ -18,10 +19,28 @@ import com.moonm.chatlib.interfaces.OnChatInListener
 import com.moonm.chatlib.interfaces.Replier
 import java.io.ByteArrayOutputStream
 import java.util.*
-import kotlin.collections.HashSet
+import kotlin.collections.HashMap
 
-public object KakaoListener: NotificationListenerService() {
-    private var listeners = HashSet<OnChatInListener>()
+private object ProcessHandler {
+    private val listeners = HashMap<String,OnChatInListener>()
+    fun registerListener(code:String,listener: OnChatInListener) {
+        if (!listeners.containsKey(code)) {
+            listeners[code] = listener
+        }
+    }
+    fun unregisterListener(code:String) {
+        listeners.remove(code)
+    }
+
+    fun getListeners():HashMap<String,OnChatInListener> {
+        return listeners
+    }
+    fun getListener(code:String):OnChatInListener? {
+        return listeners[code]
+    }
+}
+
+class KakaoListener: NotificationListenerService() {
     private lateinit var _session:Notification.Action
     private val replier:Replier = object : Replier {
         override fun send(msg: String) {
@@ -36,9 +55,20 @@ public object KakaoListener: NotificationListenerService() {
             get() = _session
             set(value) { _session = value}
     }
+    fun registerListener(code:String,listener: OnChatInListener) {
+        ProcessHandler.registerListener(code,listener)
+    }
 
-    fun addListener(listener: OnChatInListener) {
-        listeners.add(listener)
+    fun unregisterListener(code:String) {
+        ProcessHandler.unregisterListener(code)
+    }
+
+    fun getListeners() : HashMap<String,OnChatInListener> {
+        return ProcessHandler.getListeners()
+    }
+
+    fun getListener(code:String):OnChatInListener? {
+        return ProcessHandler.getListeners()[code]
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -47,6 +77,8 @@ public object KakaoListener: NotificationListenerService() {
             val wearableExtender = Notification.WearableExtender(sbn.notification)
             for (act in wearableExtender.actions) {
                 if (act.remoteInputs!=null && act.remoteInputs.isNotEmpty()) {
+                    _session = act
+                    val processHandler = ProcessHandler
                     val notification = sbn.notification
                     val message = notification.extras["android.text"].toString()
                     val sender = notification.extras.getString("android.title").toString()
@@ -57,38 +89,35 @@ public object KakaoListener: NotificationListenerService() {
                         )
                     )
                     val isGroupChat = notification.extras["android.text"] is SpannableString
-
-                    if (listeners.isNotEmpty()) {
-                        listeners.forEach {
-                            it.onResponse(
-                                room = room,
-                                sender = sender,
-                                message = message,
-                                imageHash = imageHash,
-                                isGroupChat = isGroupChat,
-                                replier = replier
-                            )
-                        }
+                    processHandler.getListeners().forEach {(_, listener) ->
+                        listener.onResponse(
+                            room = room,
+                            sender = sender,
+                            message = message,
+                            imageHash = imageHash,
+                            isGroupChat = isGroupChat,
+                            replier = replier
+                        )
                     }
                 }
             }
         }
     }
 
-    fun checkPermission(context: Context,packageName: String):Boolean {
+    fun checkPermission(context: Context):Boolean {
         val permission = Settings.Secure.getString(
             context.contentResolver,
             "enabled_notification_listeners"
         )
-        return !(permission == null || !permission.contains(packageName))
+        return !(permission == null || !permission.contains(context.packageName))
     }
 
-    fun requestPermission() {
-        startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+    fun requestPermission(context: Context) {
+        context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(FLAG_ACTIVITY_NEW_TASK))
     }
 
-    fun checkAndRequestPermission(context: Context,packageName: String) {
-        if (!checkPermission(context,packageName)) requestPermission()
+    fun checkAndRequestPermission(context: Context) {
+        if (!checkPermission(context)) requestPermission(context)
     }
 
     private fun send(message: String, session: Notification.Action) {
